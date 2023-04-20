@@ -14,6 +14,7 @@ from torch.distributed._tensor.placement_types import (
     Placement,
     Replicate,
     Shard,
+    ShardWithinDevice
 )
 from torch.distributed._tensor.sharding_prop import ShardingPropagator
 from torch.distributed._tensor.redistribute import Redistribute
@@ -183,7 +184,7 @@ class DTensor(torch.Tensor):  # pyre-ignore[13]: pyre is bad at __new__
                         tensor_stride[i] = (
                             tensor_stride[i] // local_size[shard_dim]
                         ) * size[shard_dim]
-            elif not isinstance(placement, (Replicate, _Partial)):
+            elif not isinstance(placement, (Replicate, ShardWithinDevice, _Partial)):
                 raise RuntimeError(f"placement type {type(placement)} not supported!")
 
         if requires_grad != local_tensor.requires_grad:
@@ -433,8 +434,8 @@ def distribute_tensor(
 
     # distribute the tensor according to the placements.
     for idx, placement in enumerate(placements):
-        if placement.is_shard():
-            placement = cast(Shard, placement)
+        if placement.is_shard() or placement.is_shard_within_device():
+            placement = cast(Shard if placement.is_shard() else ShardWithinDevice, placement)
             output = placement._shard_tensor(local_tensor, device_mesh, idx)
             # scatter call could not return a tensor with correct requires_grad
             # field, as ProcessGroupNCCL refuse to take a tensor with requires_grad

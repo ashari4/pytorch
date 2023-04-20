@@ -126,9 +126,11 @@ class DeviceMesh:
                     "We recommend using nccl backend for cuda device type, gloo backend might only have partial support!"
                 )
             assert self._backend == "gloo" or self._backend == "nccl" or self._backend == "threaded"
+        elif device_type == "ort":
+            pass # allow 
         else:
             raise RuntimeError(
-                f"DeviceMesh only support cpu or cuda device type, but got {device_type}"
+                f"DeviceMesh only support cpu, cuda, or ort device types, but got {device_type}"
             )
 
         world_size = get_world_size()

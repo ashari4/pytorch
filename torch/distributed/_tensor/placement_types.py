@@ -20,12 +20,24 @@ class Placement:
         else:
             return isinstance(self, Shard)
 
+    def is_shard_within_device(self) -> bool:
+        return isinstance(self, ShardWithinDevice)
+
     def is_replicate(self) -> bool:
         return isinstance(self, Replicate)
 
     def is_partial(self) -> bool:
         return isinstance(self, _Partial)
+    
+class ShardWithinDevice(Placement):
+    # shard placement, shard on a dim
+    def __init__(self):
+        pass
 
+    def _shard_tensor(
+        self, tensor: torch.Tensor, mesh: DeviceMesh, mesh_dim: int
+    ) -> torch.Tensor:
+        raise NotImplementedError("Subclass this class")
 
 class Shard(Placement):
     # shard placement, shard on a dim
