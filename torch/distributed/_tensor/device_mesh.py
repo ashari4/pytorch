@@ -109,19 +109,21 @@ class DeviceMesh(object):
             if isinstance(mesh, torch.Tensor)
             else torch.tensor(mesh, dtype=torch.int)
         )
-        # always try to create default (world) pg, even if it is not initialized
-        # already. The world pg is used for device mesh identity (rank) on each
-        # process (we need to know if the current global rank is in the mesh or not)
-        self._get_or_create_default_group()
-        if _init_process_groups:
-            self._dim_groups = self._init_process_groups()
+        if self.mesh.numel() > 1:
+            # always try to create default (world) pg, even if it is not initialized
+            # already. The world pg is used for device mesh identity (rank) on each
+            # process (we need to know if the current global rank is in the mesh or not)
+            self._get_or_create_default_group()
+            if _init_process_groups:
+                self._dim_groups = self._init_process_groups()
 
     def _get_or_create_default_group(self):
         self._backend = Backend.GLOO if self.device_type == "cpu" else Backend.NCCL
         default_initialized = is_initialized()
+        if self.device_type == "ort":
+            assert default_initialized
         if not default_initialized:
             init_process_group(backend=self._backend)
-
         world_size = get_world_size()
         if self.mesh.numel() > world_size:
             raise RuntimeError(
@@ -154,6 +156,8 @@ class DeviceMesh(object):
             # as an attribute of device mesh for future use. However, the detail is still TBD how we gonna use
             # this attribute, so we will implement this logic once we figure out the answer.
             self._seed = torch.cuda.initial_seed()
+        elif self.device_type == "ort":
+            pass
         else:
             raise RuntimeError(
                 f"DeviceMesh only support cpu or cuda device type for now, but got {self.device_type}"

@@ -401,7 +401,7 @@ def distribute_tensor(
     device_mesh = get_global_device_mesh() if device_mesh is None else device_mesh
     # convert tensor to the corresponding device type if it's not in that device type
     if not tensor.is_meta:
-        tensor = tensor.to(device_mesh.device_type)
+        tensor = tensor.to(f"{device_mesh.device_type}:{device_mesh.get_rank()}")
     # set default placements to replicated if not specified
     if placements is None:
         placements = [Replicate() for _ in range(device_mesh.ndim)]
