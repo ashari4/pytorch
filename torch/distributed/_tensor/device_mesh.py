@@ -8,7 +8,7 @@ import torch.distributed._functional_collectives as funcol
 from torch.distributed.distributed_c10d import (
     _get_default_group,
     all_to_all,
-    Backend,
+    default_backend_for_device,
     broadcast,
     get_backend,
     get_global_rank,
@@ -117,11 +117,10 @@ class DeviceMesh(object):
             self._dim_groups = self._init_process_groups()
 
     def _get_or_create_default_group(self):
-        self._backend = Backend.GLOO if self.device_type == "cpu" else Backend.NCCL
         default_initialized = is_initialized()
         if not default_initialized:
+            self._backend = default_backend_for_device(self.device_type)
             init_process_group(backend=self._backend)
-
         world_size = get_world_size()
         if self.mesh.numel() > world_size:
             raise RuntimeError(
@@ -130,21 +129,21 @@ class DeviceMesh(object):
 
         # TODO: we should do allgather the mesh tensor to ensure every rank have the same mesh value
         # TODO: if user want to pass pg_options, offer a way to do it
-        world_backend = get_backend()
+        self._backend = get_backend()
         if self.device_type == "cpu":
             cpu_backends = ["gloo", "threaded"]
             assert (
-                world_backend in cpu_backends
-            ), f"Default PG backend: {world_backend} not supporting CPU!"
+                self._backend in cpu_backends
+            ), f"Default PG backend: {self._backend} not supporting CPU!"
         elif self.device_type == "cuda":
             cuda_backends = ["nccl", "gloo", "threaded"]
-            if world_backend == "gloo":
+            if self._backend == "gloo":
                 warnings.warn(
                     "We recommend using nccl backend for cuda device type, gloo backend might only have partial support!"
                 )
             assert (
-                world_backend in cuda_backends
-            ), f"Default PG backend: {world_backend} not supporting CUDA!"
+                self._backend in cuda_backends
+            ), f"Default PG backend: {self._backend} not supporting CUDA!"
             if not default_initialized:
                 # automatically set the current cuda device base on num of gpu devices available in each host
                 # NOTE: This device selection would only work for homogeneous hardware.
@@ -154,9 +153,11 @@ class DeviceMesh(object):
             # as an attribute of device mesh for future use. However, the detail is still TBD how we gonna use
             # this attribute, so we will implement this logic once we figure out the answer.
             self._seed = torch.cuda.initial_seed()
+        elif self.device_type == "ort":
+            pass
         else:
             raise RuntimeError(
-                f"DeviceMesh only support cpu or cuda device type for now, but got {self.device_type}"
+                f"DeviceMesh only support cpu, cuda, or ort device type for now, but got {self.device_type}"
             )
 
         # calculate the coordinates of the current global rank on the mesh

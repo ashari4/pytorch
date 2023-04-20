@@ -4030,3 +4030,18 @@ def _get_group_tag(pg: ProcessGroup) -> str:
     if tag.startswith("user:"):
         tag = tag[5:]
     return tag
+
+# DO NOT USE this OBJECT DIRECTLY.
+# Use the set_default_backend_for_device and default_backend_for_device APIs instead.
+_default_backend_for_device: Dict[str, Backend] = {
+    "cuda": Backend.NCCL,
+    "cpu": Backend.GLOO
+}
+
+def set_default_backend_for_device(device_type: str, backend: Backend) -> None:
+    _default_backend_for_device[device_type] = backend
+
+def default_backend_for_device(device_type: str) -> Backend:
+    if device_type not in _default_backend_for_device:
+        raise RuntimeError(f"Default backend not set for device type {device_type}, please set a default using set_default_backend_for_device")
+    return _default_backend_for_device[device_type]

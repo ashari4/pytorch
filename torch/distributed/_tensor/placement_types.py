@@ -120,6 +120,10 @@ class Shard(Placement):
         shard and scatter a tensor on a mesh dimension (use coordinate
         0 on the mesh dimension as source of truth)
         """
+        # convert tensor to the corresponding device type if it's not in that device type
+        if not tensor.is_meta and tensor.device.type != mesh.device_type:
+            tensor = tensor.to(mesh.device_type)
+
         my_coordinate = mesh.get_coordinate()
         num_chunks = mesh.size(dim=mesh_dim)
         if my_coordinate is None:
@@ -257,6 +261,10 @@ class Replicate(Placement):
         Replicate (broadcast) a torch.Tensor on a mesh dimension (use
         the first coordinate on the mesh dimension as source of truth)
         """
+        # convert tensor to the corresponding device type if it's not in that device type
+        if not tensor.is_meta and tensor.device.type != mesh.device_type:
+            tensor = tensor.to(mesh.device_type)
+
         my_coordinate = mesh.get_coordinate()
         if my_coordinate is None:
             # if rank is not part of mesh, we simply return an empty tensor
