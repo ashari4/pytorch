@@ -27,6 +27,7 @@ def zeros(
     layout: torch.layout = torch.strided,
     device_mesh: Optional[DeviceMesh] = None,
     placements: Optional[Sequence[Placement]] = None,
+    zeros_fn=torch.zeros
 ) -> DTensor:
     """
     Returns a :class:`DTensor` filled with the scalar value 0.
@@ -44,6 +45,8 @@ def zeros(
             Default: ``torch.strided``.
         device_mesh: :class:`DeviceMesh` type, contains the mesh info of ranks
         placement: a sequence of :class:`Placement` type: Shard, Replicate, _Partial
+        zeros_fn: function to use for allocating and setting the tensor to zeros
+            Default: ``torch.zeros``
 
     Returns:
         A :class:`DTensor` object on each rank
@@ -69,7 +72,7 @@ def zeros(
     if len(local_shape) == 0:
         local_tensor = torch.tensor([], dtype=dtype, requires_grad=requires_grad)
     else:
-        local_tensor = torch.zeros(
+        local_tensor = zeros_fn(
             local_shape,
             device=device_mesh.device_type,
             dtype=dtype,
