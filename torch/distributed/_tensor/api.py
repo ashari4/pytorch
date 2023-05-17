@@ -439,7 +439,7 @@ def distribute_tensor(
             local_tensor = output
         elif placement.is_replicate():
             placement = cast(Replicate, placement)
-            local_tensor = placement._replicate_tensor(local_tensor, device_mesh, idx)
+            local_tensor = placement._replicate_tensor(local_tensor, device_mesh)
         else:
             raise RuntimeError(
                 f"Trying to distribute tensor with unsupported placements {placement} on device mesh dimension {idx}!"
