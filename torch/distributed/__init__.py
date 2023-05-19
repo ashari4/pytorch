@@ -70,6 +70,8 @@ if is_available():
         _c10d_error_logger,
         _coalescing_manager,
         _CoalescingManager,
+        set_default_backend_for_device,
+        default_backend_for_device,
     )
 
     from .rendezvous import (

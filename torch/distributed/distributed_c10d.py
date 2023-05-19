@@ -57,7 +57,8 @@ __all__ = [
     'ProcessGroup', 'ReduceOp', 'ReduceOptions', 'ReduceScatterOptions',
     'ScatterOptions', 'Store', 'DebugLevel', 'get_debug_level', 'Work',
     'default_pg_timeout', 'get_group_rank', 'get_global_rank', 'get_process_group_ranks',
-    'reduce_op', 'all_gather_into_tensor', 'reduce_scatter_tensor', 'exception_handler'
+    'reduce_op', 'all_gather_into_tensor', 'reduce_scatter_tensor', 'exception_handler',
+    'default_backend_for_device', 'set_default_backend_for_device'
 ]
 
 _MPI_AVAILABLE = True
@@ -216,7 +217,7 @@ class Backend:
             raise ValueError(f"Backend name must be a string, but got: {name}")
         value = getattr(Backend, name.upper(), Backend.UNDEFINED)
 
-        if value != Backend.GLOO and value != Backend.NCCL and value != Backend.UCC and value != Backend.MPI:
+        if value == Backend.UNDEFINED:
             value = name.lower()
         return value
 
@@ -256,7 +257,7 @@ class Backend:
             f"{name.upper()} c10d backend creator function already exist"
         )
 
-        setattr(Backend, name.upper(), name.upper())
+        setattr(Backend, name.upper(), name.lower())
         Backend.backend_list.append(name.lower())
 
         # Update device capability matrix in Backend class
@@ -572,6 +573,21 @@ _default_pg_init_method = None
 
 STORE_BASED_BARRIER_PREFIX = "store_based_barrier_key"
 
+# DO NOT USE this OBJECT DIRECTLY.
+# Use the APIs below instead.
+_default_backend_for_device: Dict[str, Backend] = {
+    "cuda": Backend.NCCL,
+    "cpu": Backend.GLOO
+}
+
+def set_default_backend_for_device(device_type: str, backend: Backend) -> None:
+    _default_backend_for_device[device_type] = backend
+
+def default_backend_for_device(device_type: str) -> Backend:
+    if device_type not in _default_backend_for_device:
+        raise RuntimeError(f"Default backend not set for device type {device_type}, please set a default using \
+                           set_default_backend_for_device")
+    return _default_backend_for_device[device_type]
 
 def _get_pg_default_device(group: Optional[ProcessGroup] = None):
     """
@@ -2277,22 +2293,6 @@ def _tensor_to_object(tensor, tensor_size):
     tensor = tensor.cpu()
     buf = tensor.numpy().tobytes()[:tensor_size]
     return _unpickler(io.BytesIO(buf)).load()
-
-
-def _check_for_nccl_backend(group):
-    pg = group or _get_default_group()
-    # Gate PG wrapper check on Gloo availability.
-    if _GLOO_AVAILABLE:
-        # It is not expected for PG to be wrapped many times, but support it just
-        # in case
-        while isinstance(pg, _ProcessGroupWrapper):
-            pg = pg.wrapped_pg
-
-    return (
-        is_nccl_available() and
-        pg.name() == Backend.NCCL
-    )
-
 
 @exception_handler
 def all_gather_object(object_list, obj, group=None):

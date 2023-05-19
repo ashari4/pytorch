@@ -9,8 +9,8 @@ from torch.distributed.distributed_c10d import (
     _get_default_group,
     all_gather,
     all_to_all,
-    Backend,
     broadcast,
+    default_backend_for_device,
     get_backend,
     get_global_rank,
     get_rank,
@@ -131,11 +131,10 @@ class DeviceMesh(object):
             self._dim_groups = self._init_process_groups()
 
     def _get_or_create_default_group(self):
-        self._backend = Backend.GLOO if self.device_type == "cpu" else Backend.NCCL
+        self._backend = default_backend_for_device(self.device_type)
         default_initialized = is_initialized()
         if not default_initialized:
             init_process_group(backend=self._backend)
-
         world_size = get_world_size()
         if self.mesh.numel() > world_size:
             raise RuntimeError(
@@ -167,9 +166,11 @@ class DeviceMesh(object):
             # as an attribute of device mesh for future use. However, the detail is still TBD how we gonna use
             # this attribute, so we will implement this logic once we figure out the answer.
             self._seed = torch.cuda.initial_seed()
+        elif self.device_type == "ort":
+            pass
         else:
             raise RuntimeError(
-                f"DeviceMesh only support cpu or cuda device type for now, but got {self.device_type}"
+                f"DeviceMesh only support cpu, cuda, or ort device type for now, but got {self.device_type}"
             )
 
         # calculate the coordinates of the current global rank on the mesh
