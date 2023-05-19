@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.distributed._tensor.api as dtensor
@@ -35,6 +35,18 @@ class ShardingPropagator:
             OpOverload,
             Callable[[Node, DeviceMesh, Dict[Node, StrategyType]], StrategyType],
         ] = {}
+        # special case op list, we don't need to propagate for local
+        # scalar. TODO: figure out a better way to handle this
+        self.skip_prop_list = [
+            torch.ops.aten._local_scalar_dense.default,
+            torch.ops.aten.equal.default,
+        ]
+
+    def skip_metadata_prop(self, ops: List[OpOverload]):
+        """
+        Skip tensor metadata prop for the given ops.
+        """
+        self.skip_prop_list += ops
 
     def register_sharding_prop_rule(
         self, op_overload: OpOverload, rule_func: Callable[[OpSchema], OutputSharding]
@@ -255,13 +267,7 @@ class ShardingPropagator:
         # right now we only use the graph for metadata prop, but next we will use
         # the graph to do sharding prop together
 
-        # special case op list, we don't need to propagate for local
-        # scalar. TODO: figure out a better way to handle this
-        skip_prop_list = [
-            torch.ops.aten._local_scalar_dense.default,
-            torch.ops.aten.equal.default,
-        ]
-        if op_overload in skip_prop_list:
+        if op_overload in self.skip_prop_list:
             return None
 
         # NOTE: We must call the tracing in fake tensor mode so that it

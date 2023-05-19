@@ -113,20 +113,22 @@ class DeviceMesh(object):
         # already. The world pg is used for device mesh identity (rank) on each
         # process (we need to know if the current global rank is in the mesh or not)
         self._get_or_create_default_group()
+
+        # todo: ah i've disabled this temporarily until we add all gather support
         # validate that all calling ranks pass in the same `mesh` argument.
-        mesh_list = [
-            torch.empty_like(self.mesh, device=self.device_type)
-            for _ in range(get_world_size())
-        ]
-        self_mesh = self.mesh.to(self.device_type)
-        all_gather(mesh_list, self_mesh)
-        for other_rank, other_mesh in enumerate(mesh_list):
-            if not torch.equal(self_mesh, other_mesh):
-                raise RuntimeError(
-                    f"DeviceMesh.__init__ does not allow different mesh argument:"
-                    f"rank {get_rank()} has mesh {self_mesh} while rank {other_rank}"
-                    f"has mesh {other_mesh}!"
-                )
+        # mesh_list = [
+        #     torch.empty_like(self.mesh, device=self.device_type)
+        #     for _ in range(get_world_size())
+        # ]
+        # self_mesh = self.mesh.to(self.device_type)
+        # all_gather(mesh_list, self_mesh)
+        # for other_rank, other_mesh in enumerate(mesh_list):
+        #     if not torch.equal(self_mesh, other_mesh):
+        #         raise RuntimeError(
+        #             f"DeviceMesh.__init__ does not allow different mesh argument:"
+        #             f"rank {get_rank()} has mesh {self_mesh} while rank {other_rank}"
+        #             f"has mesh {other_mesh}!"
+        #         )
         if _init_process_groups:
             self._dim_groups = self._init_process_groups()
 
