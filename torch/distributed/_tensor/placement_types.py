@@ -148,22 +148,22 @@ class Shard(Placement):
         self, tensor: torch.Tensor, mesh: DeviceMesh, mesh_dim: int
     ) -> torch.Tensor:
         """
-        shard and scatter a tensor on a mesh dimension (use coordinate
-        0 on the mesh dimension as source of truth)
-        """
+        copy the relevant slice of the global tensor to the local device.
+        """        
         my_coordinate = mesh.get_coordinate()
-        num_chunks = mesh.size(dim=mesh_dim)
-
         if my_coordinate is None:
             # if rank is not part of mesh, we simply return an empty tensor
-            return tensor.new_empty(0, requires_grad=tensor.requires_grad)
+            return tensor.new_empty(0, device=mesh.device_type(), requires_grad=tensor.requires_grad)
 
+        num_chunks = mesh.size(dim=mesh_dim)
         scatter_list, pad_sizes = self._split_tensor(
             tensor, num_chunks, with_padding=True, contiguous=True
         )
+        src_shard = scatter_list[my_coordinate[mesh_dim]]
+        output = torch.empty_like(src_shard, device=mesh.device_type)
 
-        output = torch.empty_like(scatter_list[my_coordinate[mesh_dim]])
-        mesh.scatter(output, scatter_list, mesh_dim=mesh_dim)
+        if not tensor.is_meta:
+            output.copy_(src_shard)
 
         # Only unpad if the local_tensor was padded on the dimension.
         pad_size = pad_sizes[my_coordinate[mesh_dim]]
@@ -303,20 +303,21 @@ class Replicate(Placement):
         return "R"
 
     def _replicate_tensor(
-        self, tensor: torch.Tensor, mesh: DeviceMesh, mesh_dim: int
+        self, tensor: torch.Tensor, mesh: DeviceMesh
     ) -> torch.Tensor:
         """
-        Replicate (broadcast) a torch.Tensor on a mesh dimension (use
-        the first coordinate on the mesh dimension as source of truth)
+        Replicate a torch.Tensor by copying it to the local device.
         """
         my_coordinate = mesh.get_coordinate()
         if my_coordinate is None:
             # if rank is not part of mesh, we simply return an empty tensor
-            return tensor.new_empty(0, requires_grad=tensor.requires_grad)
+            return tensor.new_empty(0, device=mesh.device_type, requires_grad=tensor.requires_grad)
 
-        tensor = tensor.contiguous()
-        mesh.broadcast(tensor, mesh_dim=mesh_dim)
-        return tensor
+        output = torch.empty_like(tensor, device=mesh.device_type)
+        if not tensor.is_meta:
+            output.copy_(tensor)        
+        
+        return output
 
 
 class _Partial(Placement):

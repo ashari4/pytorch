@@ -280,7 +280,7 @@ class DTensor(torch.Tensor):  # pyre-ignore[13]: pyre is bad at __new__
         device_mesh = device_mesh or mesh_resources.get_current_mesh()
 
         # convert the local tensor to desired device base on device mesh's device_type
-        if not local_tensor.is_meta:
+        if not local_tensor.is_meta and local_tensor.device.type != device_mesh.device_type:
             local_tensor = local_tensor.to(device_mesh.device_type)
 
         # set default placements to replicated if not specified
@@ -399,9 +399,6 @@ def distribute_tensor(
     """
     # get default device mesh if there's nothing specified
     device_mesh = device_mesh or mesh_resources.get_current_mesh()
-    # convert tensor to the corresponding device type if it's not in that device type
-    if not tensor.is_meta:
-        tensor = tensor.to(device_mesh.device_type)
     # set default placements to replicated if not specified
     if placements is None:
         placements = [Replicate() for _ in range(device_mesh.ndim)]
@@ -442,7 +439,7 @@ def distribute_tensor(
             local_tensor = output
         elif placement.is_replicate():
             placement = cast(Replicate, placement)
-            local_tensor = placement._replicate_tensor(local_tensor, device_mesh, idx)
+            local_tensor = placement._replicate_tensor(local_tensor, device_mesh)
         else:
             raise RuntimeError(
                 f"Trying to distribute tensor with unsupported placements {placement} on device mesh dimension {idx}!"
@@ -519,7 +516,6 @@ def distribute_module(
         # apply partition_fun to submodules
         for name, submod in module.named_modules():
             partition_fn(name, submod, device_mesh)
-            replicate_module_params_buffers(submod, device_mesh)
 
     # register input_fn as module forward pre hook
     if input_fn is not None:
